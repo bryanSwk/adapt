@@ -4,6 +4,8 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 import json
 
+from src.func.search import search_arxiv, search_google
+
 # Callbacks support token-wise streaming
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 # Verbose is required to pass to the callback manager
@@ -124,8 +126,20 @@ def is_json(text):
     return True
 
 def main_call(query):
+    counter = 0
     response = generate_text(create_prompt_template(query, function_list=functions))
-    while is_json(response):
-        results_function = function_mapping.get(eg['function'], lambda *args, **kwargs: [])
-        results = results_function(eg['arguments']['query'])
-        response = generate_text(create_prompt_template(query, function_list=functions, context=response))
+    print(response)
+
+    while is_json(response) and counter < 2:
+        call_function = function_mapping.get(response['function'], lambda *args, **kwargs: [])
+        results, source = call_function(response['arguments']['query'])
+        response = generate_text(create_prompt_template(query, function_list=functions, context=results))
+        print(response)
+        counter+=1
+
+    else:
+        print(response)
+
+if __name__ == '__main__':
+    query = "Who is Walter Teng Kok Wai?"
+    main_call(query)
