@@ -5,34 +5,33 @@ import json
 from googlesearch import search
 import arxiv
 
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import BrowserlessLoader
 
-browserless_api_key = os.getenv("BROWSERLESS_KEY")
 
-embedder = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2",
-                                 model_kwargs={'device': 'cuda'})
-
-def summary(query, url):
+def summary(query, url, embedder):
     print("Starting summary..")
     info, source = [], []
-    loader = BrowserlessLoader(api_token=browserless_api_key, urls=url)
-    documents = loader.load()
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=20)
-    all_splits = text_splitter.split_documents(documents)       
-    db = FAISS.from_documents(all_splits, embedder)
-    docs = db.similarity_search(query, 5)
+    print("Scraping Websites..")
+    loader = BrowserlessLoader(api_token=browserless_api_key, 
+                               urls=url)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=20)
+    documents = loader.load_and_split(text_splitter=splitter)
+    
+    # all_splits = text_splitter.split_documents(documents)
+    print("Creating Vector DB..")       
+    db = FAISS.from_documents(documents, embedder)
+    docs = db.similarity_search(query, 7)
     for doc in docs:
         info.append(doc.page_content)
         source.append(doc.metadata['source'])
-    return info, source
+    return info, set(source)
                                  
 
-def search_google(query, num_results=5):
+def search_google(query, embedder, num_results=3):
     search_results = search(query, sleep_interval=5, num_results=num_results)
-    info, source = summary(query, search_results)
+    info, source = summary(query, search_results, embedder)
     return info, source
 
 
